@@ -1,0 +1,23 @@
+results: "/lab/work/arushiv/magic_analyses/gregor"
+email: ""
+
+# From of output dir name for each trait.
+output_dir: "output_{trait}.ld{gregor_r2}"
+
+DATA:
+  input_snps: "data/snps/{trait}.txt"
+  annotations: "data/annotations/{annotation}.bed"
+  output: "enrichment_stats.txt"
+    
+PARAMETERS:
+  # Specify GREGOR script path
+  gregor_version_path: "/lab/sw/modules/GREGOR/1.2.1/script/GREGOR.pl"
+  TRAITS: "glob_wildcards(DATA['input_snps'])[0]"
+  config_name: "enrich.{trait}.ld{gregor_r2}.conf"
+  POPULATION: "EUR"
+  gregor_r2: 0.8
+  cores: 10
+    
+SCRIPTS: 
+  makeConfFile: "scripts/gregor_makeConf.py"
+  assembleDF: "scripts/assemble-output.py"
