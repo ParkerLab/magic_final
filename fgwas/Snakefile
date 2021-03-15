@@ -1,0 +1,73 @@
+import os
+import pandas
+
+DIR = config['results']
+
+workdir:
+    DIR
+
+DATA = config['DATA']
+SCRIPTS = config['SCRIPTS']
+DATADIR = "data"
+WORKDIR = "work"
+FIGDIR = "figures"
+FGWAS = SCRIPTS['FGWAS']
+
+TRAITS, = glob_wildcards(DATA['summaryStats'])
+ANNOTATIONS, = glob_wildcards(DATA['annotations'])
+
+rule final:
+    input:
+        expand(os.path.join(WORKDIR, "fgwas.{trait}.{annotation}.params"), trait = TRAITS, annotation = ANNOTATIONS)
+        
+rule formatInput:
+    input:
+        summaryStats = DATA['summaryStats']
+    output:
+        mainOutput = os.path.join(DATADIR, "{trait}.input.dat"),
+        col3Output = temp(os.path.join(DATADIR, "{trait}.col3Output.bed"))
+    params:
+        script = SCRIPTS['formatInput'],
+        formatName = "1:10 MarkerName",
+        colOrder = "MarkerName Freq1 TotalSampleSize StdErr"
+    shell:
+        r"""
+        python {params.script} {input.summaryStats} --mainOutput {output.mainOutput} --col3Output {output.col3Output} -f {params.formatName} -k {params.colOrder} --onlyFormat
+        """
+
+rule intersectAnnotations:
+    input:
+        assoc_file = rules.formatInput.output.col3Output,
+        annot = DATA['annotations']
+    output:
+        tempOut = temp(os.path.join(DATADIR, "temp.{trait}.{annotation}.bed")),
+        finalOut = temp(os.path.join(DATADIR, "{trait}.{annotation}.bed"))
+    shell:
+        r"""
+        intersectBed -a {input.assoc_file} -b {input.annot} -c | awk '{{ print $NF }}'  > {output.tempOut};
+        echo -e "{wildcards.annotation}" | cat - {output.tempOut} > {output.finalOut}
+        """
+        
+rule collapseIntersectResults:
+    input:
+        assoc_file = rules.formatInput.output.mainOutput,
+        intersectResults = expand(os.path.join(DATADIR, "{{trait}}.{annotation}.bed"), annotation=ANNOTATIONS),
+    output:
+        os.path.join(DATADIR, "{trait}.formattedInput.dat.gz")
+    shell:
+        r"""
+        paste {input.assoc_file} {input.intersectResults} | gzip -c > {output}
+        """
+    
+rule fgwas_singleAnnotation:
+    input:
+        rules.collapseIntersectResults.output
+    output:
+        os.path.join(WORKDIR, "fgwas.{trait}.{annotation}.params")
+    params:
+        outputflag = os.path.join(WORKDIR, "fgwas.{trait}.{annotation}")
+    shell:
+        r"""
+        ionice -c2 -n7 {FGWAS} -i {input} -w {wildcards.annotation} -o {params.outputflag}
+        """
+

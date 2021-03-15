@@ -1,0 +1,58 @@
+__default__:
+  time: "1:00:00"
+  cpus: 1
+  mem: "8000M"
+  jobname: "{rule}.{wildcards}"
+  output: "logs/slurm-%A_%a.{rule}.out"
+  error: "logs/slurm-%A_%a.{rule}.err"
+
+
+# fGWAS
+formatInput_magic_new:
+  mem: "20000M"
+
+formatInput_magic_pub_dupuis:
+  mem: "20000M"
+
+formatInput_magic_pub_manning:
+  mem: "20000M"
+  
+format_islet_eqtl:
+  mem: "20000M"
+
+format_islet_inspire_eqtl:
+  mem: "20G"
+  time: "40:00:00"
+  
+formatInput:
+  mem: "20000M"
+  
+createAssocBedFile:
+  mem: "20000M"
+
+collapseIntersectResults:
+  mem: "20000M"
+
+fgwas_single_annot:
+  mem: "28G"
+  time: "3:00:00"
+  
+fgwas_iter:
+  mem: "18G"
+  time: "25:00:00"
+
+fgwas_annot_combinations:
+  mem: "18G"
+  time: "25:00:00"
+  
+test_cross_validation_likelihood_penalties:
+  mem: "35G"
+  time: "100:00:00"
+  
+fgwas_iter_backward:
+  mem: "18G"
+  time: "25:00:00"
+
+fgwas_conditional_analysis:
+  mem: "15G"
+  time: "5:00:00"

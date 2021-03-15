@@ -1,0 +1,14 @@
+# Run fGWAS single model using annotations, then run conditional analyses
+results: "/lab/work/arushiv/magic_analyses/test/fgwas"
+email: ""
+
+DATA:
+  summaryStats: "data/summaryStats/MAGIC_1KG_EA_{trait}_InvNorm_meta_2GC.gz"
+  annotations: "data/annotations/{annotation}.bed"
+  
+SCRIPTS:
+  formatInput: "scripts/fGWAS_formatInput.py"
+  collapseIntersectResults: "scripts/mergeMultipleFiles.py"
+  plot: "scripts/plot.R"
+  FGWAS: "/lab/sw/modules/fgwas/0.3.6/bin/fgwas"
+      
