@@ -8,7 +8,6 @@ DATA:
   
 SCRIPTS:
   formatInput: "scripts/fGWAS_formatInput.py"
-  collapseIntersectResults: "scripts/mergeMultipleFiles.py"
   plot: "scripts/plot.R"
   FGWAS: "/lab/sw/modules/fgwas/0.3.6/bin/fgwas"
       
