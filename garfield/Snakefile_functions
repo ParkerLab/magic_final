@@ -1,0 +1,53 @@
+import os
+import pandas
+import math
+import numpy
+import sys
+
+DIR = config['parent']
+workdir:
+    DIR
+
+onsuccess:
+    shell("""mail -s "GARFIELD finished" {my_email} < {log}""")
+
+onerror:
+    print("An error occurred")
+    shell("""mail -s "an error occurred in GARFIELD workflow" {my_email} < {log}""")
+
+
+# GARFIEL info:
+GARFIELD_DATA = config['GARFIELD']['DATA']
+GARFIELD_SCRIPTS = config['GARFIELD']['SCRIPTS']
+PRUNETAGSDIR = os.path.join(GARFIELD_DATA, "tags/r01")
+CLUMPTAGSDIR = os.path.join(GARFIELD_DATA, "tags/r08")
+MAFTSSDDIR = os.path.join(GARFIELD_DATA, "maftssd")
+# We keep all organized GWAS data in the main GARFIELD DATA directory to save space.
+PVALDIR = os.path.join(GARFIELD_DATA, 'pval')
+
+
+DATA = config['DATA']
+PARAMETERS = config['PARAMETERS']
+SCRIPTS = config['SCRIPTS']
+
+# DIRECTORIES
+d_data = os.path.join(DIR, "data")
+d_figures = os.path.join(DIR, "figures")
+d_garfield = os.path.join(DIR, "work")
+
+# Important: the annot_link_file records the paths to the annotation bed files that were used.
+ANNOTDIR = os.path.join(d_data, 'annotations')
+ANNOT_LINK_FILE = PARAMETERS['annot_link_file']
+# Common parameters
+TRAITS  = PARAMETERS['traits']
+
+# ANNOTATIONS = eval(PARAMETERS['annotations'])
+my_email = config['email']
+CHROM = range(1, 23)
+
+
+if len(TRAITS) == 0:
+    print("list of traits empty. Exiting")
+    sys.exit(1)
+
+

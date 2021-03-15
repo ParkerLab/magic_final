@@ -1,0 +1,142 @@
+import os
+import pandas
+import math
+import numpy
+
+include: "Snakefile_functions"
+
+
+onsuccess:
+    shell("""mail -s "GARFIELD finished" {my_email} < {log}""")
+    
+onerror:
+    print("An error occurred")
+    shell("""mail -s "an error occurred in GARFIELD workflow" {my_email} < {log}""")
+
+annot_df = pandas.read_csv(ANNOT_LINK_FILE, sep=' ')
+
+def get_annot_file_list():
+    annot_list = annot_df['Annotation'].tolist()
+    return annot_list
+
+ANNOTATIONS = get_annot_file_list()
+
+if len(ANNOTATIONS) == 0:
+    print("list of annotations empty. Exiting")
+    sys.exit(1)
+
+def get_annot_bed_file(wildcards):
+    annot_path = annot_df[annot_df['Annotation'] == wildcards.annotation].iloc[0]['Path']
+    return annot_path
+
+
+rule final_garfield_organize:
+    """Single Annotation Workflow, includes function definitions from included Snakefile """
+    input:
+        gwas_files = expand(os.path.join(PVALDIR, "{trait}", "chr{chrom}"),
+                            trait = TRAITS,
+                            chrom = CHROM),
+        annotation_files = expand(os.path.join(ANNOTDIR, "chr{chrom}"), chrom=CHROM)
+
+        
+def get_gwas_col(trait, col):
+    cols = {'chr': 0,
+            'pos': 1,
+            'pval': 2}
+    column = eval(PARAMETERS['gwas_columns'][trait])[cols[col]]
+    return column
+
+rule prep_diamante:
+    """Prep GWAS summary data required for GARFIELD"""
+    input:
+        gwas = lambda wildcards: DATA['gwas_files'][f"diamante.{wildcards.strait}"]
+    output:
+        gwas = os.path.join(PVALDIR, "diamante.{strait}", "chr{chrom}")
+    params:
+        chroms = " ".join([str(x) for x in CHROM]),
+        outdir = os.path.join(PVALDIR, "diamante.{strait}"),
+        chrcol = 2,
+        poscol = 3,
+        pvalcol = 9,
+    shell:
+        """
+        zcat {input.gwas} | awk '{{ if ((${params.chrcol}=={wildcards.chrom})) print ${params.poscol},${params.pvalcol} }}' |
+        sort -k1n > {output.gwas} ;
+        """
+
+rule prep_new_magic:
+    """Prep GWAS summary data required for GARFIELD"""
+    input:
+        gwas = lambda wildcards: DATA['gwas_files'][f"magic_new.{wildcards.strait}"]
+    output:
+        gwas = os.path.join(PVALDIR, "magic_new.{strait}", "chr{chrom}")
+    params:
+        chroms = " ".join([str(x) for x in CHROM]),
+        outdir = os.path.join(PVALDIR, "magic_new.{strait}"),
+        chrcol = 1,
+        poscol = 2,
+        pvalcol = 4,
+    shell:
+        r"""
+        zcat {input.gwas} | 
+        grep -v MarkerName |
+        cut -f1,6 | 
+        sed -e 's/:/\t/g' | 
+        awk '{{ if ((${params.chrcol}=={wildcards.chrom})) print ${params.poscol},${params.pvalcol} }}' |
+        sort -k1n > {output.gwas} ;
+        """
+
+rule get_snp_bed:
+    """SNP bedfile to intersect """
+    input:
+        snp = os.path.join(GARFIELD_DATA, "annotation", "chr{chrom}")
+    output:
+        bed = temp(os.path.join(ANNOTDIR, "snpbed", "chr{chrom}.bed"))
+    shell:
+        r"""
+        cut -d' ' -f1 {input.snp} | awk '{{print "chr{wildcards.chrom}\t"$1-1,$1}}' OFS='\t' > {output.bed}
+        """
+
+rule intersect_snp_bed:
+    input:
+        snp_bed = rules.get_snp_bed.output.bed,
+        annot = get_annot_bed_file,
+    output:
+        data = os.path.join(ANNOTDIR, "intersects/chr{chrom}", "{annotation}.bed")
+    shell:
+        """
+        intersectBed -a {input.snp_bed} -b {input.annot}  -c | awk '{{ print $NF }}'  > {output.data};
+        """
+
+rule collapseIntersectResults:
+    """Assemble all input into one file
+    Don't include TSS distance column for now"""
+    input:
+        annot_link_file = ANNOT_LINK_FILE,
+        assoc_file = expand(os.path.join(GARFIELD_DATA, "annotation", "chr{chrom}"), chrom=CHROM),
+        intersectResults = expand(os.path.join(ANNOTDIR, "intersects/chr{chrom}", "{annotation}.bed"),
+                                  annotation = ANNOTATIONS, chrom=CHROM),
+    output:
+        annot_link_file = os.path.join(ANNOTDIR, "annot_link_file.txt"),
+        tempout = temp(expand(os.path.join(ANNOTDIR, "temp", "chr{chrom}.temp"), chrom=CHROM)),
+        tempout1 = temp(expand(os.path.join(ANNOTDIR, "temp", "chr{chrom}.intersects.temp"), chrom=CHROM)),
+        main = expand(os.path.join(ANNOTDIR, "chr{chrom}"), chrom=CHROM)
+    run:
+        shell("ln -s {input.annot_link_file} {output.annot_link_file}")
+        for chrom in CHROM:
+            snpfile = os.path.join(GARFIELD_DATA, "annotation", f"chr{chrom}")
+            tempfile = os.path.join(ANNOTDIR, "temp", f"chr{chrom}.temp")
+            annotfilelist = ' '.join([os.path.join(ANNOTDIR, f"intersects/chr{chrom}", f"{annot}.bed") for annot in ANNOTATIONS ])
+            tempoutfile = os.path.join(ANNOTDIR, "temp", f"chr{chrom}.intersects.temp")
+            outfile = os.path.join(ANNOTDIR, f"chr{chrom}")
+            cmd = f""" paste -d' ' {annotfilelist} | sed -e 's: ::g' > {tempoutfile};
+            cut -d' ' -f1 {snpfile} > {tempfile} ;
+            paste -d' ' {tempfile} {tempoutfile} > {outfile};
+            """
+            
+            print(cmd)
+            shell(cmd)
+                                                                
+        
+
+                     

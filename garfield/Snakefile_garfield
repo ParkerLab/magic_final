@@ -1,0 +1,111 @@
+import os
+import pandas
+import math
+import numpy
+
+include: "Snakefile_functions"
+include: "Snakefile_organize_data"
+
+def get_padj(filename):
+    with open(filename) as m:
+        padj = float(m.readlines()[1].split('\t')[1].rstrip())
+    return padj
+
+
+rule final_garfield:
+    """Single Annotation Workflow, includes function definitions from included Snakefile """
+    input:
+        main = expand(os.path.join(d_garfield, "{trait}/garfield.enrichment.{trait}.out"),
+                      trait = TRAITS),
+        neffective = expand(os.path.join(d_figures, "{trait}.enrichment-ci95.pdf"),
+                            trait = TRAITS),
+
+        
+rule prune_and_clump:
+    """Prune SNPs r2 0.1 and clump """
+    input:
+        garfield_prep_chr = os.path.join(GARFIELD_SCRIPTS, "garfield-prep-chr"),
+        prune = os.path.join(PRUNETAGSDIR, "chr{chrom}"),
+        clump = os.path.join(CLUMPTAGSDIR, "chr{chrom}"),
+        maf = os.path.join(MAFTSSDDIR, "chr{chrom}"),
+        pval = os.path.join(PVALDIR, "{trait}", "chr{chrom}"),
+        annot = os.path.join(ANNOTDIR, "chr{chrom}")
+    output:
+        out = os.path.join(d_garfield, "{trait}/prep/chr{chrom}")
+    params:
+        exclude = f" -excl {PARAMETERS['exclude_annots']} " if PARAMETERS['exclude_annots'] != "" else "",
+    shell:
+        '{input.garfield_prep_chr} '
+        ' -ptags {input.prune} '
+        ' -ctags {input.clump} '
+        ' -maftss {input.maf} '
+        ' -pval {input.pval} '
+        ' -ann {input.annot} '
+        ' {params.exclude} '
+        ' -chr {wildcards.chrom} '
+        ' -o {output.out} || {{ echo "Failure!"; }} ;'
+
+
+rule concat_prep:
+    """Concat prepped data for chroms """
+    input:
+        inputs = expand(os.path.join(d_garfield, "{{trait}}/prep/chr{chrom}"), chrom=CHROM)
+    output:
+        main = os.path.join(d_garfield, "{trait}/garfield.prep.{trait}.out")
+    shell:
+        """
+        cat {input.inputs} | sort -t' ' -k1,1 -n > {output.main} 
+        """
+
+rule calculate_effective_annots:
+    """Calculate effective number of annotations"""
+    input:
+        garfield_meff = os.path.join(GARFIELD_SCRIPTS, "garfield-Meff-Padj.R"),
+        prep = rules.concat_prep.output.main,
+    output:
+        main = os.path.join(d_garfield, "{trait}/garfield.Meff.{trait}.out")
+    shell:
+        ' Rscript {input.garfield_meff} '
+        ' -i {input.prep} '
+        ' -o {output.main} '
+
+
+rule test_enrichment:
+    """Calculate effective number of annotations"""
+    input:
+        garfield_test = os.path.join(GARFIELD_SCRIPTS, "garfield-test.R"),
+        prep = rules.concat_prep.output.main,
+        annot_link_file = PARAMETERS['annot_link_file'],
+    params:
+        subset_annots = " -s {PARAMETERS['subset_annots']}" if PARAMETERS['subset_annots'] != "" else "" 
+    output:
+        main = os.path.join(d_garfield, "{trait}/garfield.enrichment.{trait}.out")
+    shell:
+        ' Rscript {input.garfield_test} '
+        ' -i {input.prep} '
+        ' -o {output.main} '
+        ' -l {input.annot_link_file} '
+        ' -pt {PARAMETERS[pthresh]} '
+        ' -b {PARAMETERS[binning]} '
+        ' -s {PARAMETERS[subset_annots]} '
+        ' -c 0 '
+
+        
+rule create_plots:
+    """MAke default and custom GARFIELD plots"""
+    input:
+        garfield_plot = os.path.join(GARFIELD_SCRIPTS, "garfield-plot.R"),
+        custom_plot = SCRIPTS['plot'],
+        meff = rules.calculate_effective_annots.output.main,
+        enrichment = rules.test_enrichment.output.main,
+        annot_link_file = PARAMETERS['annot_link_file'],
+    output:
+        custom_plot = os.path.join(d_figures, "{trait}.enrichment-ci95.pdf")
+    params:
+        garfield_plot_str = os.path.join(d_figures, "{trait}.garfield-plot")
+    run:
+        padj = get_padj(input.meff)
+        custom_plot = f""" Rscript {input.custom_plot} {input.enrichment} {output.custom_plot} {padj} """
+
+        shell(custom_plot)
+

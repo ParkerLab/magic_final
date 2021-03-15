@@ -1,0 +1,49 @@
+# Run GARFIELD on annotations.
+# Need an annot_link_file listing annotations names and paths.
+
+email: ""
+
+# parent directory for the whole analysis, this will be the workdir
+BASE: "/lab/work/arushiv/magic_analyses/garfield" 
+
+# Download GARFIELD and specify the data and script directories
+GARFIELD:
+  DATA: "/lab/work/arushiv/sw/GARFIELD/garfield-data"
+  SCRIPTS: "/lab/work/arushiv/sw/GARFIELD/garfield-v2"
+  
+
+DATA:
+  # Specify GWAS summary stats paths
+  gwas:
+    magic_new.2hrGluadjBMI: "data/MAGIC_1KG_EA_2hrGluadjBMI_InvNorm_meta_2GC.gz"
+    magic_new.FGluadjBMI: "data/MAGIC_1KG_EA_FGluadjBMI_InvNorm_meta_2GC.gz"
+    magic_new.FInsadjBMI: "data/MAGIC_1KG_EA_FInsadjBMI_InvNorm_meta_2GC.gz"
+    magic_new.HbA1c: "data/MAGIC_1KG_EA_HbA1c_InvNorm_meta_2GC.gz"
+    
+SCRIPTS:
+  plot: "/home/arushiv/gwas_garfield_enrichments/garfield/plot_garfield.R"
+  
+PARAMETERS:
+  # traits
+  traits:
+    - "magic_new.FGluadjBMI"
+    - "magic_new.FInsadjBMI"
+    - "magic_new.HbA1c"
+    - "magic_new.2hrGluadjBMI"
+
+  # Need an annot_link_file listing annotations names and paths.
+  # Specify the annot link file
+  annot_link_file: "annotation_link_file.txt"
+  # exclude annots from pruning and clumping? provide a comma separated string of index numbers
+  exclude_annots: ""
+  # P val thresholds
+  pthresh: "1e-5,1e-8"
+  # bins
+  binning: "m5,n5,t5"
+  # comma separated index numbers of annotations to run for which are a subset of annot_link_file.
+  # Default is 0, takes all annots in link file
+  subset_annots: 0
+  # Single annot level enrichment (0) or conditional analysis (1)
+  condition: 0
+  
+  
